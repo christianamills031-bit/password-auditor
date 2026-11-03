@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Password Strength Auditor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      padding: 24px; font-family: system-ui, sans-serif; color: #172033;
+      background: #eef4fb;
+    }
+    .card {
+      width: min(100%, 560px); padding: 28px; background: white;
+      border: 1px solid #d8e1ee; border-radius: 16px;
+      box-shadow: 0 12px 32px rgb(25 50 80 / 10%);
+    }
+    h1 { margin-top: 0; }
+    .note, .privacy { color: #526176; font-size: .95rem; }
+    label { display: block; margin: 22px 0 8px; font-weight: 650; }
+    .password-row { display: flex; gap: 8px; }
+    input {
+      min-width: 0; flex: 1; padding: 12px; border: 1px solid #aebbd0;
+      border-radius: 8px; font: inherit;
+    }
+    button {
+      padding: 10px 14px; border: 0; border-radius: 8px; color: white;
+      background: #2457c5; font: inherit; cursor: pointer;
+    }
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid #8bb5ff; outline-offset: 2px;
+    }
+    .meter {
+      height: 12px; overflow: hidden; border-radius: 999px;
+      background: #e4e9f1;
+    }
+    .fill {
+      width: 0; height: 100%; border-radius: inherit;
+      background: linear-gradient(90deg, #d94b4b, #e5a52f, #278a57);
+      transition: width 150ms ease;
+    }
+    li { margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Password Strength Auditor</h1>
+    <p class="note">Basic checks run in your browser. The password is not submitted.</p>
+
+    <label for="password">Try a test password</label>
+    <div class="password-row">
+      <input id="password" type="password" autocomplete="off"
+             spellcheck="false" placeholder="Enter a test password">
+      <button id="toggle" type="button" aria-pressed="false">Show</button>
+    </div>
+    <p class="privacy">This page does not send the password to a server.</p>
+
+    <section id="strength" aria-live="polite" hidden>
+      <p><strong>Assessment:</strong> <span id="label"></span></p>
+      <div class="meter" role="progressbar" aria-label="Rough password strength"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="fill" class="fill"></div>
+      </div>
+      <ul id="feedback"></ul>
+    </section>
+  </main>
+
+  <script>
+    const input = document.querySelector("#password");
+    const section = document.querySelector("#strength");
+    const label = document.querySelector("#label");
+    const fill = document.querySelector("#fill");
+    const meter = document.querySelector(".meter");
+    const feedback = document.querySelector("#feedback");
+    const toggle = document.querySelector("#toggle");
+
+    const commonPasswords = new Set([
+      "password", "password123", "123456", "12345678", "qwerty",
+      "letmein", "welcome", "admin", "iloveyou", "changeme"
+    ]);
+
+    function assess(password) {
+      const issues = [];
+      const length = [...password].length;
+      const common = commonPasswords.has(password.toLowerCase());
+      let points = 0;
+
+      if (length >= 16) points += 50;
+      else if (length >= 12) points += 35;
+      else if (length >= 8) points += 20;
+      else issues.push("Try a longer password; 12 or more characters is a useful starting point.");
+
+      if (common) {
+        points = 0;
+        issues.push("This is a commonly used password. Choose something unique.");
+      }
+      if (/(.)\1{2,}/u.test(password)) {
+        points -= 15;
+        issues.push("Avoid long runs of the same character.");
+      }
+      if (/(.{2,})\1+/u.test(password)) {
+        points -= 15;
+        issues.push("Avoid repeating a pattern.");
+      }
+      if (/(123|234|345|456|567|678|789|abc|bcd|cde|qwerty|asdf)/i.test(password)) {
+        points -= 15;
+        issues.push("Avoid common sequences or keyboard patterns.");
+      }
+
+      const variety = [
+        /[a-z]/.test(password), /[A-Z]/.test(password),
+        /[0-9]/.test(password), /[^A-Za-z0-9]/.test(password)
+      ].filter(Boolean).length;
+      points += variety * 5;
+      if (length >= 20) points += 15;
+      points = Math.max(0, Math.min(100, points));
+
+      let rating;
+      if (common || points < 25) rating = "Weak";
+      else if (points < 50) rating = "Fair";
+      else if (points < 75) rating = "Good";
+      else rating = "Very good";
+
+      if (issues.length === 0) issues.push("No obvious issues found by these basic checks.");
+      return { points, rating, issues };
+    }
+
+    input.addEventListener("input", () => {
+      const password = input.value;
+      section.hidden = password.length === 0;
+      if (!password) return;
+
+      const result = assess(password);
+      label.textContent = result.rating;
+      fill.style.width = result.points + "%";
+      meter.setAttribute("aria-valuenow", result.points);
+      feedback.replaceChildren();
+
+      for (const message of result.issues) {
+        const item = document.createElement("li");
+        item.textContent = message;
+        feedback.appendChild(item);
+      }
+    });
+
+    toggle.addEventListener("click", () => {
+      const showing = input.type === "password";
+      input.type = showing ? "text" : "password";
+      toggle.textContent = showing ? "Hide" : "Show";
+      toggle.setAttribute("aria-pressed", String(showing));
+      input.focus();
+    });
+  </script>
+</body>
+</html>
